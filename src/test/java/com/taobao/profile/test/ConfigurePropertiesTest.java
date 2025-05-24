@@ -24,6 +24,52 @@ public class ConfigurePropertiesTest {
   }
   
   @Test
+  public void testUnresolvableVariableThrowsRuntimeException() {
+    Properties delegateProps = new Properties();
+    delegateProps.put("test.key", "value_with_${unresolvable.var}");
+    Properties contextProps = new Properties(); // Ensure unresolvable.var is not here
+    
+    ConfigureProperties config = new ConfigureProperties(delegateProps, contextProps);
+    
+    try {
+      config.getProperty("test.key");
+      Assert.fail("Expected RuntimeException was not thrown.");
+    } catch (RuntimeException e) {
+      // Optionally, check if the cause is VariableNotFoundException
+      // This depends on the implementation of ConfigureProperties
+      // For now, just catching RuntimeException as specified.
+      Assert.assertTrue("RuntimeException should be thrown for unresolvable variable.", true);
+      // To be more specific if ConfigureProperties wraps VariableNotFoundException:
+      // Assert.assertTrue("Cause should be VariableNotFoundException", e.getCause() instanceof com.taobao.profile.utils.VariableNotFoundException);
+    }
+  }
+
+  @Test
+  public void testGetPropertyWithDefaultValue() {
+    // Scenario 1: Key not found, default value returned.
+    Properties delegateProps1 = new Properties();
+    Properties contextProps1 = new Properties();
+    ConfigureProperties config1 = new ConfigureProperties(delegateProps1, contextProps1);
+    Assert.assertEquals("defaultVal", config1.getProperty("nonexistent.key", "defaultVal"));
+
+    // Scenario 2: Key found, but unresolvable variable, RuntimeException thrown.
+    Properties delegateProps2 = new Properties();
+    delegateProps2.put("test.key.unresolvable", "value_with_${unresolvable.var.again}");
+    Properties contextProps2 = new Properties(); // Ensure unresolvable.var.again is not here
+    ConfigureProperties config2 = new ConfigureProperties(delegateProps2, contextProps2);
+    
+    try {
+      config2.getProperty("test.key.unresolvable", "defaultVal");
+      Assert.fail("Expected RuntimeException was not thrown for unresolvable variable with default value.");
+    } catch (RuntimeException e) {
+      // Optionally, check if the cause is VariableNotFoundException
+      Assert.assertTrue("RuntimeException should be thrown for unresolvable variable.", true);
+      // To be more specific if ConfigureProperties wraps VariableNotFoundException:
+      // Assert.assertTrue("Cause should be VariableNotFoundException", e.getCause() instanceof com.taobao.profile.utils.VariableNotFoundException);
+    }
+  }
+  
+  @Test
   public void testConfigure() throws IOException{
     Properties properties = new Properties();
     InputStream in = getClass().getClassLoader().getResourceAsStream("profile.properties");
