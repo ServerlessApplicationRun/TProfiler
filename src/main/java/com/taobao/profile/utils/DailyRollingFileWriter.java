@@ -174,10 +174,26 @@ public class DailyRollingFileWriter {
 	 * @param append
 	 */
 	private void createWriter(String filename, boolean append) {
+		FileWriter fw = null;
 		try {
-			bufferedWriter = new BufferedWriter(new FileWriter(filename, append), 8 * 1024);
+			fw = new FileWriter(filename, append);
+			bufferedWriter = new BufferedWriter(fw, 8 * 1024);
 		} catch (IOException e) {
-			e.printStackTrace();
+			e.printStackTrace(); // Or a proper logger
+			if (fw != null) {
+				try {
+					fw.close();
+				} catch (IOException ioe) {
+					ioe.printStackTrace(); // Or a proper logger
+				}
+			}
+			// Depending on desired error handling, you might want to set bufferedWriter to null
+			// or rethrow the exception to signal that writer creation failed.
+			// For now, this just logs and ensures fw is closed if it was opened.
+			// To ensure bufferedWriter is not used if it failed, you could add:
+			// this.bufferedWriter = null; 
+			// Or ensure the caller checks if bufferedWriter is null if this method can fail silently.
+			// However, the original code also allowed bufferedWriter to remain unassigned on exception.
 		}
 	}
 
@@ -186,15 +202,25 @@ public class DailyRollingFileWriter {
 	 * @param file
 	 */
 	private void createWriter(File file) {
+		FileWriter fw = null;
 		try {
             file = file.getCanonicalFile();
             File parent = file.getParentFile();
             if (parent != null && !parent.exists()) {
                 parent.mkdirs();
             }
-			bufferedWriter = new BufferedWriter(new FileWriter(file), 8 * 1024);
+			fw = new FileWriter(file); // FileWriter(File) constructor overwrites by default
+			bufferedWriter = new BufferedWriter(fw, 8 * 1024);
 		} catch (IOException e) {
-			e.printStackTrace();
+			e.printStackTrace(); // Or a proper logger
+			if (fw != null) {
+				try {
+					fw.close();
+				} catch (IOException ioe) {
+					ioe.printStackTrace(); // Or a proper logger
+				}
+			}
+            // Similar error handling considerations as above for bufferedWriter state.
 		}
 	}
 

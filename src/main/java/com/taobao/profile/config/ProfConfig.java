@@ -119,6 +119,9 @@ public class ProfConfig {
 	 */
 	private int recordTime;
 
+	private String socketBindAddress;
+	private String socketAuthToken;
+
 	/**
 	 * 构造方法
 	 */
@@ -184,9 +187,21 @@ public class ProfConfig {
       for (int len = -1; (len = in.read(buffer)) != -1;){
         out.write(buffer, 0, len);
       }
-    }finally{
-      in.close();
-      out.close();
+    } finally {
+        if (in != null) {
+            try {
+                in.close();
+            } catch (IOException e) {
+                e.printStackTrace(); // Or a proper logger
+            }
+        }
+        if (out != null) {
+            try {
+                out.close();
+            } catch (IOException e) {
+                e.printStackTrace(); // Or a proper logger
+            }
+        }
     }
   }
 
@@ -232,6 +247,8 @@ public class ProfConfig {
     String debugMode = properties.getProperty("debugMode");
     String port = properties.getProperty("port");
 	String recordTime = properties.getProperty("recordTime","-1");
+	String socketBindAddressProp = properties.getProperty("profiler.socket.bindaddress");
+	String socketAuthTokenProp = properties.getProperty("profiler.socket.authtoken");
 
     setPort(port == null ? 50000 : Integer.valueOf(port));
     setDebugMode("true".equalsIgnoreCase(debugMode == null ? null : debugMode.trim()));
@@ -245,6 +262,8 @@ public class ProfConfig {
     setStartProfTime(startProfTime);
     setNeedNanoTime("true".equals(needNanoTime));
     setIgnoreGetSetMethod("true".equals(ignoreGetSetMethod));
+    setSocketBindAddress(socketBindAddressProp);
+    setSocketAuthToken(socketAuthTokenProp);
     if (eachProfUseTime == null) {
     	setEachProfUseTime(5);
     } else {
@@ -483,5 +502,24 @@ public class ProfConfig {
 
 	public void setRecordTime(int recordTime) {
 		this.recordTime = recordTime;
+	}
+
+	public String getSocketBindAddress() {
+		if (socketBindAddress == null || socketBindAddress.trim().isEmpty()) {
+			return "127.0.0.1"; // Default to localhost
+		}
+		return socketBindAddress;
+	}
+
+	public void setSocketBindAddress(String socketBindAddress) {
+		this.socketBindAddress = socketBindAddress;
+	}
+
+	public String getSocketAuthToken() {
+		return socketAuthToken; // Can be null or empty if not set
+	}
+
+	public void setSocketAuthToken(String socketAuthToken) {
+		this.socketAuthToken = socketAuthToken;
 	}
 }

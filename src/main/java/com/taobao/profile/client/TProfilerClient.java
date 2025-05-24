@@ -158,19 +158,43 @@ public class TProfilerClient {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		if (args.length != 3) {
-			System.err.println("Usage: <server ip> <server port> <command[start/stop/status/flushmethod]>");
+		if (args.length < 3 || args.length > 4) {
+			System.err.println("Usage: <server ip> <server port> <command[start/stop/status/flushmethod]> [auth_token]");
 			return;
 		}
-        int port = Integer.valueOf(args[1]);
-		if (args[2].toLowerCase().equals(Manager.START)) {
-			start(args[0], port);
-		} else if (args[2].toLowerCase().equals(Manager.STOP)) {
-			stop(args[0], port);
-		} else if (args[2].toLowerCase().equals(Manager.FLUSHMETHOD)) {
-			flushMethod(args[0], port);
+
+		String serverIp = args[0];
+		int port = Integer.valueOf(args[1]);
+		String commandName = args[2].toLowerCase();
+		String authToken = null;
+
+		if (args.length == 4) {
+			authToken = args[3];
+		}
+
+		String commandToSend = "";
+		if (commandName.equals(Manager.START.toLowerCase())) {
+			commandToSend = Manager.START;
+		} else if (commandName.equals(Manager.STOP.toLowerCase())) {
+			commandToSend = Manager.STOP;
+		} else if (commandName.equals(Manager.FLUSHMETHOD.toLowerCase())) {
+			commandToSend = Manager.FLUSHMETHOD;
+		} else if (commandName.equals(Manager.STATUS.toLowerCase())) {
+			commandToSend = Manager.STATUS;
 		} else {
-			System.out.println(status(args[0], port));
+			System.err.println("Unknown command: " + commandName);
+			return;
+		}
+
+		String finalCommand = commandToSend;
+		if (authToken != null && !authToken.trim().isEmpty()) {
+			finalCommand = authToken + "@" + commandToSend;
+		}
+
+		if (commandToSend.equals(Manager.STATUS)) {
+			System.out.println(getStatus(finalCommand, serverIp, port));
+		} else {
+			doSend(finalCommand, serverIp, port);
 		}
 	}
 }

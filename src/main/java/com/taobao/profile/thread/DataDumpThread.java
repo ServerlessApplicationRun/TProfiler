@@ -52,9 +52,40 @@ public class DataDumpThread extends Thread {
 	 */
 	public DataDumpThread(ProfConfig config) {
 		// 读取用户配置
-		fileWriter = new DailyRollingFileWriter(config.getLogFilePath());
-		File temp = new File(config.getLogFilePath());
-		mysqlFileWriter = new DailyRollingFileWriter(temp.getParent()+"/mysqlProfiler.log");
+		String logFilePath = config.getLogFilePath(); // Already non-null due to ProfConfig changes (returns "")
+		// Initialize fileWriter (assuming DailyRollingFileWriter can handle empty string path or throw error)
+		try {
+		    fileWriter = new DailyRollingFileWriter(logFilePath);
+		} catch (Exception e) {
+		    System.err.println("TProfiler: Failed to initialize fileWriter for path: " + logFilePath);
+		    e.printStackTrace();
+		    fileWriter = null; // Set to null if init fails
+		}
+
+		String mysqlLogPath;
+		if (logFilePath.isEmpty()) {
+		    // If main log path is empty (not configured), mysql log also goes to a default name in current dir
+		    mysqlLogPath = "mysqlProfiler.log"; 
+		    System.err.println("TProfiler: logFilePath is empty. MySQL logs will be in current dir: " + new File(mysqlLogPath).getAbsolutePath());
+		} else {
+		    File temp = new File(logFilePath);
+		    String parentDir = temp.getParent();
+		    if (parentDir == null) {
+		        // logFilePath is a relative filename like "profiler.log"
+		        mysqlLogPath = "mysqlProfiler.log";
+		         System.err.println("TProfiler: logFilePath has no parent directory. MySQL logs will be in current dir: " + new File(mysqlLogPath).getAbsolutePath());
+		    } else {
+		        mysqlLogPath = new File(parentDir, "mysqlProfiler.log").getPath();
+		    }
+		}
+		
+		try {
+		    mysqlFileWriter = new DailyRollingFileWriter(mysqlLogPath);
+		} catch (Exception e) {
+		    System.err.println("TProfiler: Failed to initialize mysqlFileWriter for path: " + mysqlLogPath);
+		    e.printStackTrace();
+		    mysqlFileWriter = null; // Ensure it's null if initialization fails
+		}
 		eachProfUseTime = config.getEachProfUseTime();
 		eachProfIntervalTime = config.getEachProfIntervalTime();
 	}
@@ -86,6 +117,9 @@ public class DataDumpThread extends Thread {
 			if (fileWriter != null) {
 				fileWriter.closeFile();
 			}
+			if (mysqlFileWriter != null) {
+				mysqlFileWriter.closeFile();
+			}
 			// 等待已开始的End方法执行完成
 			try {
 				TimeUnit.MILLISECONDS.sleep(500L);
@@ -102,6 +136,7 @@ public class DataDumpThread extends Thread {
 	 * @return
 	 */
 	private void dumpProfileData() {
+		if (fileWriter == null) return;
 		ThreadData[] threadData = Profiler.threadProfile;
 		for (int index = 0; index < threadData.length; index++) {
 			ThreadData profilerData = threadData[index];
@@ -137,6 +172,7 @@ public class DataDumpThread extends Thread {
 	 * 记录Mysql方法的日志
 	 */
 	private void dumpMysqlData(){
+		if (mysqlFileWriter == null) return;
 
 		SlowQueryData[] threadData = Profiler.slowQueryProfile;
 		for (int index = 0; index < threadData.length; index++) {

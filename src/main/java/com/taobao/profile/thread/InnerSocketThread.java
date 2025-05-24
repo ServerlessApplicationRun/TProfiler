@@ -13,6 +13,7 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -27,6 +28,7 @@ import com.taobao.profile.runtime.MethodCache;
  * @since 2012-1-11
  */
 public class InnerSocketThread extends Thread {
+	private static final int MAX_COMMAND_LENGTH = 1024;
 	/**
 	 * server
 	 */
@@ -39,19 +41,56 @@ public class InnerSocketThread extends Thread {
 	 */
 	public void run() {
 		try {
-			socket = new ServerSocket(Manager.PORT);
+			com.taobao.profile.config.ProfConfig config = Manager.instance().getProfConfig();
+			String bindAddress = config.getSocketBindAddress(); // Fetches from ProfConfig
+			int port = Manager.PORT; // Manager.PORT is already available via ProfConfig during Manager init
+
+			try {
+				 socket = new ServerSocket(port, 50, InetAddress.getByName(bindAddress));
+				 System.out.println("TProfiler: InnerSocketThread listening on " + bindAddress + ":" + port);
+			} catch (java.net.UnknownHostException e) {
+				 System.err.println("TProfiler: InnerSocketThread could not bind to address " + bindAddress + ". Defaulting to all interfaces.");
+				 e.printStackTrace(); // Log the error
+				 socket = new ServerSocket(port); // Fallback to original behavior
+			}
 			while (true) {
 				Socket child = socket.accept();
 
 				child.setSoTimeout(5000);
 
-				String command = read(child.getInputStream());
+				String rawFullCommand = read(child.getInputStream());
+				
+				String authToken = config.getSocketAuthToken();
+				String actualCommand = rawFullCommand;
+				boolean authenticated = false;
 
-				if (Manager.START.equals(command)) {
+				if (authToken != null && !authToken.trim().isEmpty()) {
+					if (rawFullCommand != null && rawFullCommand.contains("@")) {
+						String[] parts = rawFullCommand.split("@", 2);
+						if (parts.length == 2 && authToken.equals(parts[0])) {
+							actualCommand = parts[1];
+							authenticated = true;
+						}
+					}
+					if (!authenticated) {
+						System.err.println("TProfiler: InnerSocketThread authentication failed. Closing connection.");
+						// Optionally send an error response to client before closing
+						// child.getOutputStream().write("Authentication failed\r\n".getBytes());
+						// child.getOutputStream().flush();
+						child.close();
+						continue; // Skip further processing for this connection
+					}
+				} else {
+					// No token configured, or token is empty string, so command is considered authenticated
+					authenticated = true; 
+				}
+
+				// IMPORTANT: Use 'actualCommand' for all subsequent command comparisons, not 'rawFullCommand'
+				if (Manager.START.equals(actualCommand)) {
 					Manager.instance().setSwitchFlag(true);
-				} else if (Manager.STATUS.equals(command)) {
+				} else if (Manager.STATUS.equals(actualCommand)) {
 					write(child.getOutputStream());
-				} else if (Manager.FLUSHMETHOD.equals(command)) {
+				} else if (Manager.FLUSHMETHOD.equals(actualCommand)) {
 					MethodCache.flushMethodData();
 				} else {
 					Manager.instance().setSwitchFlag(false);
@@ -59,8 +98,14 @@ public class InnerSocketThread extends Thread {
 				child.close();
 			}
 		} catch (SocketException e) {
+			// SocketException can occur if the socket is closed abruptly,
+            // or if there are network issues.
+			System.err.println("TProfiler: InnerSocketThread SocketException: " + e.getMessage());
 			e.printStackTrace();
 		} catch (IOException e) {
+			// This will catch the "Command exceeded maximum length" IOException
+            // as well as other general IO errors.
+			System.err.println("TProfiler: InnerSocketThread IOException: " + e.getMessage());
 			e.printStackTrace();
 		} finally {
 			if (socket != null) {
@@ -89,6 +134,9 @@ public class InnerSocketThread extends Thread {
 			if (c == '\r') {
 				break;
 			} else {
+				if (sb.length() >= MAX_COMMAND_LENGTH) {
+					throw new IOException("Command exceeded maximum length of " + MAX_COMMAND_LENGTH + " bytes.");
+				}
 				sb.append(c);
 			}
 		}

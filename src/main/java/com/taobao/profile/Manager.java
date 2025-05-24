@@ -232,6 +232,10 @@ public class Manager {
 		Manager.recordTime = recordTime;
 	}
 
+	public ProfConfig getProfConfig() {
+		return profConfig;
+	}
+
 	/**
 	 * 设置包名过滤器
 	 * 
