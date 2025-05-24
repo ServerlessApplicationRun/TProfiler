@@ -274,7 +274,7 @@ public class ProfConfig {
 	 * @return
 	 */
 	public String getStartProfTime() {
-		return startProfTime;
+		return startProfTime != null ? startProfTime : "";
 	}
 
 	/**
@@ -288,7 +288,7 @@ public class ProfConfig {
 	 * @return
 	 */
 	public String getEndProfTime() {
-		return endProfTime;
+		return endProfTime != null ? endProfTime : "";
 	}
 
 	/**
@@ -302,7 +302,7 @@ public class ProfConfig {
 	 * @return
 	 */
 	public String getLogFilePath() {
-		return logFilePath;
+		return logFilePath != null ? logFilePath : "";
 	}
 
 	/**
@@ -316,7 +316,7 @@ public class ProfConfig {
 	 * @return the methodFilePath
 	 */
 	public String getMethodFilePath() {
-		return methodFilePath;
+		return methodFilePath != null ? methodFilePath : "";
 	}
 
 	/**
@@ -331,7 +331,7 @@ public class ProfConfig {
 	 * @return
 	 */
 	public String getIncludePackageStartsWith() {
-		return includePackageStartsWith;
+		return includePackageStartsWith != null ? includePackageStartsWith : "";
 	}
 
 	/**
@@ -373,7 +373,7 @@ public class ProfConfig {
 	 * @return
 	 */
 	public String getExcludePackageStartsWith() {
-		return excludePackageStartsWith;
+		return excludePackageStartsWith != null ? excludePackageStartsWith : "";
 	}
 
 	/**
@@ -431,7 +431,7 @@ public class ProfConfig {
 	 * @return the samplerFilePath
 	 */
 	public String getSamplerFilePath() {
-		return samplerFilePath;
+		return samplerFilePath != null ? samplerFilePath : "";
 	}
 
 	/**
@@ -445,7 +445,7 @@ public class ProfConfig {
 	 * @return the excludeClassLoader
 	 */
 	public String getExcludeClassLoader() {
-		return excludeClassLoader;
+		return excludeClassLoader != null ? excludeClassLoader : "";
 	}
 
 	/**

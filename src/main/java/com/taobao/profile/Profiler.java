@@ -260,10 +260,10 @@ public class Profiler {
 			Object[] frameData = new Object[6];
 			frameData[0] = thrData.stackNum;
 			frameData[1] = startTime;
-			frameData[2] = host;
+			frameData[2] = host != null ? host : "";
 			frameData[3] = port;
-			frameData[4] = db;
-			frameData[5] = sql;
+			frameData[4] = db != null ? db : "";
+			frameData[5] = sql != null ? sql : "";
 			thrData.stackFrame.push(frameData);
 			thrData.stackNum++;
 		} catch (Exception e) {
@@ -296,19 +296,19 @@ public class Profiler {
 		RecordSlowQuery record = new RecordSlowQuery();
 		Map<String, String> map = new HashMap<String, String>();
 
-		map.put("host", (String) frameData[2]);
-		map.put("port", frameData[3].toString());
-		map.put("db", (String) frameData[4]);
-		map.put("sql", (String) frameData[5]);
+		map.put("host", String.valueOf(frameData[2]));
+		map.put("port", String.valueOf(frameData[3]));
+		map.put("db", String.valueOf(frameData[4]));
+		map.put("sql", String.valueOf(frameData[5]));
 		record.setRequestDesc(map);
 		record.setUseTime(endTime - (Long) frameData[1]);
 		record.setType("MYSQL");
 
 		StringBuilder sb = new StringBuilder();
 		sb.append("MYSQL");
-		sb.append((String) frameData[2]);
-		sb.append(frameData[3].toString());
-		sb.append((String) frameData[4]);
+		sb.append(String.valueOf(frameData[2]));
+		sb.append(String.valueOf(frameData[3]));
+		sb.append(String.valueOf(frameData[4]));
 
 		if(!isNeedRecord(record.getUseTime())){
 			return;
