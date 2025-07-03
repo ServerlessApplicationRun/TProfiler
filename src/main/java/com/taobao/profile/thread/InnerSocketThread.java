@@ -13,9 +13,11 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.taobao.profile.Manager;
 import com.taobao.profile.runtime.MethodCache;
@@ -32,6 +34,21 @@ public class InnerSocketThread extends Thread {
 	 */
 	private ServerSocket socket;
 
+	/**
+	 * Maximum concurrent connections allowed
+	 */
+	private static final int MAX_CONCURRENT_CONNECTIONS = 10;
+	
+	/**
+	 * Maximum command length to prevent DoS attacks
+	 */
+	private static final int MAX_COMMAND_LENGTH = 100;
+	
+	/**
+	 * Current active connection count
+	 */
+	private static final AtomicInteger activeConnections = new AtomicInteger(0);
+
 	/*
 	 * (non-Javadoc)
 	 * 
@@ -39,30 +56,60 @@ public class InnerSocketThread extends Thread {
 	 */
 	public void run() {
 		try {
-			socket = new ServerSocket(Manager.PORT);
+			// Fix: Bind only to localhost for security
+			socket = new ServerSocket(Manager.PORT, 50, InetAddress.getLoopbackAddress());
 			while (true) {
-				Socket child = socket.accept();
+				Socket child = null;
+				try {
+					child = socket.accept();
 
-				child.setSoTimeout(5000);
+					// Fix: Implement connection limiting to prevent DoS
+					if (activeConnections.get() >= MAX_CONCURRENT_CONNECTIONS) {
+						child.close();
+						continue;
+					}
 
-				String command = read(child.getInputStream());
+					activeConnections.incrementAndGet();
+					
+					// Fix: Set reasonable timeout and buffer limits
+					child.setSoTimeout(5000);
 
-				if (Manager.START.equals(command)) {
-					Manager.instance().setSwitchFlag(true);
-				} else if (Manager.STATUS.equals(command)) {
-					write(child.getOutputStream());
-				} else if (Manager.FLUSHMETHOD.equals(command)) {
-					MethodCache.flushMethodData();
-				} else {
-					Manager.instance().setSwitchFlag(false);
+					String command = read(child.getInputStream());
+
+					if (Manager.START.equals(command)) {
+						Manager.instance().setSwitchFlag(true);
+					} else if (Manager.STATUS.equals(command)) {
+						write(child.getOutputStream());
+					} else if (Manager.FLUSHMETHOD.equals(command)) {
+						MethodCache.flushMethodData();
+					} else {
+						Manager.instance().setSwitchFlag(false);
+					}
+				} catch (SocketException e) {
+					// Expected when socket is closed, don't log as error
+					if (!socket.isClosed()) {
+						e.printStackTrace();
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				} finally {
+					// Fix: Ensure client socket is always closed
+					if (child != null) {
+						try {
+							child.close();
+						} catch (IOException e) {
+							// Log but don't rethrow
+							e.printStackTrace();
+						} finally {
+							activeConnections.decrementAndGet();
+						}
+					}
 				}
-				child.close();
 			}
-		} catch (SocketException e) {
-			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
 		} finally {
+			// Fix: Ensure server socket is always closed
 			if (socket != null) {
 				try {
 					socket.close();
@@ -82,9 +129,16 @@ public class InnerSocketThread extends Thread {
 	 */
 	private String read(InputStream in) throws IOException {
 		BufferedInputStream bin = new BufferedInputStream(in);
-		StringBuffer sb = new StringBuffer();
+		StringBuilder sb = new StringBuilder();
         int i;
+		int bytesRead = 0;
+		
+		// Fix: Add length limit to prevent DoS attacks
 		while ((i = bin.read()) != -1) {
+			if (++bytesRead > MAX_COMMAND_LENGTH) {
+				throw new IOException("Command too long, potential DoS attack");
+			}
+			
 			char c = (char) i;
 			if (c == '\r') {
 				break;
@@ -103,13 +157,23 @@ public class InnerSocketThread extends Thread {
 	 */
 	private void write(OutputStream os) throws IOException {
 		BufferedOutputStream out = new BufferedOutputStream(os);
-		if (Manager.instance().getSwitchFlag()) {
-			out.write("running".getBytes());
-		} else {
-			out.write("stop".getBytes());
+		try {
+			if (Manager.instance().getSwitchFlag()) {
+				out.write("running".getBytes());
+			} else {
+				out.write("stop".getBytes());
+			}
+			out.write('\r');
+			out.flush();
+		} finally {
+			// Fix: Ensure output stream is properly closed
+			try {
+				out.close();
+			} catch (IOException e) {
+				// Log but don't rethrow
+				e.printStackTrace();
+			}
 		}
-		out.write('\r');
-		out.flush();
 	}
 
     /**
