@@ -53,7 +53,7 @@ public class Profiler {
 			return;
 		}
 		long threadId = Thread.currentThread().getId();
-		if (threadId >= size) {
+		if (threadId < 0 || threadId >= size) {
 			return;
 		}
 
@@ -64,18 +64,23 @@ public class Profiler {
 			startTime = System.currentTimeMillis();
 		}
 		try {
-			ThreadData thrData = threadProfile[(int) threadId];
-			if (thrData == null) {
-				thrData = new ThreadData();
-				threadProfile[(int) threadId] = thrData;
-			}
+			int threadIndex = (int) threadId;
+			synchronized (threadProfile) {
+				ThreadData thrData = threadProfile[threadIndex];
+				if (thrData == null) {
+					thrData = new ThreadData();
+					threadProfile[threadIndex] = thrData;
+				}
 
-			long[] frameData = new long[3];
-			frameData[0] = methodId;
-			frameData[1] = thrData.stackNum;
-			frameData[2] = startTime;
-			thrData.stackFrame.push(frameData);
-			thrData.stackNum++;
+				synchronized (thrData) {
+					long[] frameData = new long[3];
+					frameData[0] = methodId;
+					frameData[1] = thrData.stackNum;
+					frameData[2] = startTime;
+					thrData.stackFrame.push(frameData);
+					thrData.stackNum++;
+				}
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -91,7 +96,7 @@ public class Profiler {
 			return;
 		}
 		long threadId = Thread.currentThread().getId();
-		if (threadId >= size) {
+		if (threadId < 0 || threadId >= size) {
 			return;
 		}
 
@@ -102,32 +107,39 @@ public class Profiler {
 			endTime = System.currentTimeMillis();
 		}
 		try {
-			ThreadData thrData = threadProfile[(int) threadId];
-			if (thrData == null || thrData.stackNum <= 0 || thrData.stackFrame.size() == 0) {
-				// 没有执行start,直接执行end/可能是异步停止导致的
+			int threadIndex = (int) threadId;
+			ThreadData thrData = threadProfile[threadIndex];
+			if (thrData == null) {
 				return;
 			}
-			// 栈太深则抛弃部分数据
-			if (thrData.profileData.size() > 20000) {
+			
+			synchronized (thrData) {
+				if (thrData.stackNum <= 0 || thrData.stackFrame.size() == 0) {
+					// 没有执行start,直接执行end/可能是异步停止导致的
+					return;
+				}
+				// 栈太深则抛弃部分数据
+				if (thrData.profileData.size() > 20000) {
+					thrData.stackNum--;
+					thrData.stackFrame.pop();
+					return;
+				}
 				thrData.stackNum--;
-				thrData.stackFrame.pop();
-				return;
-			}
-			thrData.stackNum--;
-			long[] frameData = thrData.stackFrame.pop();
-			long id = frameData[0];
-			if (methodId != id) {
-				return;
-			}
-			long useTime = endTime - frameData[2];
-			if (Manager.isNeedNanoTime()) {
-				if (useTime > 500000) {
+				long[] frameData = thrData.stackFrame.pop();
+				long id = frameData[0];
+				if (methodId != id) {
+					return;
+				}
+				long useTime = endTime - frameData[2];
+				if (Manager.isNeedNanoTime()) {
+					if (useTime > 500000) {
+						frameData[2] = useTime;
+						thrData.profileData.push(frameData);
+					}
+				} else if (useTime > 1) {
 					frameData[2] = useTime;
 					thrData.profileData.push(frameData);
 				}
-			} else if (useTime > 1) {
-				frameData[2] = useTime;
-				thrData.profileData.push(frameData);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -135,20 +147,28 @@ public class Profiler {
 	}
 
 	public static void clearData() {
-		for (int index = 0; index < threadProfile.length; index++) {
-			ThreadData profilerData = threadProfile[index];
-			if (profilerData == null) {
-				continue;
+		synchronized (threadProfile) {
+			for (int index = 0; index < threadProfile.length; index++) {
+				ThreadData profilerData = threadProfile[index];
+				if (profilerData == null) {
+					continue;
+				}
+				synchronized (profilerData) {
+					profilerData.clear();
+				}
 			}
-			profilerData.clear();
 		}
 
-		for (int index = 0; index < slowQueryProfile.length; index++) {
-			SlowQueryData profilerData = slowQueryProfile[index];
-			if (profilerData == null) {
-				continue;
+		synchronized (slowQueryProfile) {
+			for (int index = 0; index < slowQueryProfile.length; index++) {
+				SlowQueryData profilerData = slowQueryProfile[index];
+				if (profilerData == null) {
+					continue;
+				}
+				synchronized (profilerData) {
+					profilerData.clear();
+				}
 			}
-			profilerData.clear();
 		}
 	}
 
@@ -163,7 +183,7 @@ public class Profiler {
 			return -1;
 		}
 		long threadId = Thread.currentThread().getId();
-		if (threadId >= size) {
+		if (threadId < 0 || threadId >= size) {
 			return -1;
 		}
 		return threadId;
@@ -189,12 +209,15 @@ public class Profiler {
 	 * @return
 	 */
 	private static SlowQueryData getThreadData(long threadId){
-		SlowQueryData thrData = slowQueryProfile[(int) threadId];
-		if (thrData == null) {
-			thrData = new SlowQueryData();
-			slowQueryProfile[(int) threadId] = thrData;
+		int threadIndex = (int) threadId;
+		synchronized (slowQueryProfile) {
+			SlowQueryData thrData = slowQueryProfile[threadIndex];
+			if (thrData == null) {
+				thrData = new SlowQueryData();
+				slowQueryProfile[threadIndex] = thrData;
+			}
+			return thrData;
 		}
-		return thrData;
 	}
 
 	/**
@@ -224,15 +247,17 @@ public class Profiler {
 		if(thrData==null){
 			return null;
 		}
-		// 栈太深则抛弃部分数据
-		if (thrData.profileData.size() > 20000) {
+		synchronized (thrData) {
+			// 栈太深则抛弃部分数据
+			if (thrData.profileData.size() > 20000) {
+				thrData.stackNum--;
+				thrData.stackFrame.pop();
+				return null;
+			}
 			thrData.stackNum--;
-			thrData.stackFrame.pop();
-			return null;
+			Object[] frameData = thrData.stackFrame.pop();
+			return frameData;
 		}
-		thrData.stackNum--;
-		Object[] frameData = thrData.stackFrame.pop();
-		return frameData;
 	}
 
 	/**
@@ -257,15 +282,17 @@ public class Profiler {
 		try {
 			SlowQueryData thrData = getThreadData(threadId);
 
-			Object[] frameData = new Object[6];
-			frameData[0] = thrData.stackNum;
-			frameData[1] = startTime;
-			frameData[2] = host;
-			frameData[3] = port;
-			frameData[4] = db;
-			frameData[5] = sql;
-			thrData.stackFrame.push(frameData);
-			thrData.stackNum++;
+			synchronized (thrData) {
+				Object[] frameData = new Object[6];
+				frameData[0] = thrData.stackNum;
+				frameData[1] = startTime;
+				frameData[2] = host;
+				frameData[3] = port;
+				frameData[4] = db;
+				frameData[5] = sql;
+				thrData.stackFrame.push(frameData);
+				thrData.stackNum++;
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -315,6 +342,8 @@ public class Profiler {
 		}
 		map.put("nanoTime", Manager.isNeedNanoTime() + "");
 
-		thrData.profileData.push(record);
+		synchronized (thrData) {
+			thrData.profileData.push(record);
+		}
 	}
 }

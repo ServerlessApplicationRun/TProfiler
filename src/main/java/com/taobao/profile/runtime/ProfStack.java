@@ -28,6 +28,12 @@ public class ProfStack<E> {
 	protected int elementCount;
 
 	/**
+	 * Maximum array size to prevent OutOfMemoryError
+	 * Some VMs reserve some header words in an array.
+	 */
+	private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+
+	/**
 	 * 
 	 */
 	public ProfStack() {
@@ -40,10 +46,33 @@ public class ProfStack<E> {
 	private void ensureCapacityHelper(int minCapacity) {
 		int oldCapacity = elementData.length;
 		if (minCapacity > oldCapacity) {
-			int newCapacity = (oldCapacity * 2);
+			int newCapacity;
+			
+			// Fix: Prevent integer overflow and excessive memory allocation
+			if (oldCapacity > MAX_ARRAY_SIZE / 2) {
+				// Close to max size, use conservative growth
+				newCapacity = MAX_ARRAY_SIZE;
+			} else {
+				// Normal case: grow by 50% to balance memory usage and performance
+				newCapacity = oldCapacity + (oldCapacity >> 1);
+			}
+			
+			// Fix: Ensure we don't exceed maximum array size
 			if (newCapacity < minCapacity) {
 				newCapacity = minCapacity;
 			}
+			if (newCapacity > MAX_ARRAY_SIZE) {
+				if (minCapacity > MAX_ARRAY_SIZE) {
+					throw new OutOfMemoryError("Required array size too large");
+				}
+				newCapacity = MAX_ARRAY_SIZE;
+			}
+			
+			// Fix: Add validation to prevent negative capacity
+			if (newCapacity < 0) {
+				throw new OutOfMemoryError("Required array size too large");
+			}
+			
 			elementData = Arrays.copyOf(elementData, newCapacity);
 		}
 	}
@@ -64,7 +93,9 @@ public class ProfStack<E> {
 	public E pop() {
 		E obj;
 		obj = peek();
-		removeElementAt(elementCount - 1);
+		if (obj != null) {
+			removeElementAt(elementCount - 1);
+		}
 		return obj;
 	}
 
@@ -81,8 +112,8 @@ public class ProfStack<E> {
 	 * 
 	 */
 	public void clear() {
-		for (int i = 0; i < elementCount; i++)
-			elementData[i] = null;
+		// Fix: More efficient clearing with range setting
+		Arrays.fill(elementData, 0, elementCount, null);
 		elementCount = 0;
 	}
 
