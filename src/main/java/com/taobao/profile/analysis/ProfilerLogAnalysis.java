@@ -77,11 +77,12 @@ public class ProfilerLogAnalysis {
 	 * 读取log,并解析
 	 */
 	private void reader() {
-		BufferedReader reader = null;
+		// 首先读取方法路径文件
+		BufferedReader methodReader = null;
 		try {
-			reader = new BufferedReader(new FileReader(methodPath));
+			methodReader = new BufferedReader(new FileReader(methodPath));
 			String line = null;
-			while ((line = reader.readLine()) != null) {
+			while ((line = methodReader.readLine()) != null) {
 				if (line.startsWith("instrument")) {
 					continue;
 				}
@@ -91,11 +92,26 @@ public class ProfilerLogAnalysis {
 				}
 				methodIdMap.put(Long.parseLong(data[0]), String.valueOf(data[1]));
 			}
-			reader.close();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			if (methodReader != null) {
+				try {
+					methodReader.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
 
-			reader = new BufferedReader(new FileReader(logPath));
-			line = null;
-			while ((line = reader.readLine()) != null) {
+		// 然后读取日志路径文件
+		BufferedReader logReader = null;
+		try {
+			logReader = new BufferedReader(new FileReader(logPath));
+			String line = null;
+			while ((line = logReader.readLine()) != null) {
 				if (line.startsWith("##")) {
 					line = line.substring(line.indexOf(":") + 1, line.length());
 					if (line.equals("true")) {
@@ -121,9 +137,9 @@ public class ProfilerLogAnalysis {
 		} catch (IOException e) {
 			e.printStackTrace();
 		} finally {
-			if (reader != null) {
+			if (logReader != null) {
 				try {
-					reader.close();
+					logReader.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
