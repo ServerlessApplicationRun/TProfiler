@@ -48,6 +48,18 @@ public class Manager {
 	 */
 	public static final String FLUSHMETHOD = "flushmethod";
 	/**
+	 * 启动SWE-bench评测
+	 */
+	public static final String SWEBENCH_START = "swebench_start";
+	/**
+	 * 停止SWE-bench评测
+	 */
+	public static final String SWEBENCH_STOP = "swebench_stop";
+	/**
+	 * 查询SWE-bench状态
+	 */
+	public static final String SWEBENCH_STATUS = "swebench_status";
+	/**
 	 * 是否用纳秒采集
 	 */
 	private static boolean NEED_NANO_TIME;
