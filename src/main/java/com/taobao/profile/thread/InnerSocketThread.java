@@ -19,6 +19,7 @@ import java.net.SocketException;
 
 import com.taobao.profile.Manager;
 import com.taobao.profile.runtime.MethodCache;
+import com.taobao.profile.thread.SWEBenchThread;
 
 /**
  * 对外提供Socket开关
@@ -53,6 +54,10 @@ public class InnerSocketThread extends Thread {
 					write(child.getOutputStream());
 				} else if (Manager.FLUSHMETHOD.equals(command)) {
 					MethodCache.flushMethodData();
+				} else if (command != null && command.startsWith("swebench_")) {
+					// 处理SWE-bench相关命令
+					String response = SWEBenchThread.getInstance().handleCommand(command);
+					writeResponse(child.getOutputStream(), response);
 				} else {
 					Manager.instance().setSwitchFlag(false);
 				}
@@ -108,6 +113,20 @@ public class InnerSocketThread extends Thread {
 		} else {
 			out.write("stop".getBytes());
 		}
+		out.write('\r');
+		out.flush();
+	}
+	
+	/**
+	 * 输出响应
+	 * 
+	 * @param os
+	 * @param response
+	 * @throws IOException
+	 */
+	private void writeResponse(OutputStream os, String response) throws IOException {
+		BufferedOutputStream out = new BufferedOutputStream(os);
+		out.write(response.getBytes());
 		out.write('\r');
 		out.flush();
 	}
