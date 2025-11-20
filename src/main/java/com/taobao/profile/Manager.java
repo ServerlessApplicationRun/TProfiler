@@ -150,6 +150,10 @@ public class Manager {
 		return NEED_NANO_TIME;
 	}
 
+	public static void setNeedNanoTime(boolean value) {
+		NEED_NANO_TIME = value;
+	}
+
 	/**
 	 * @return the ignoreGetSetMethod
 	 */
