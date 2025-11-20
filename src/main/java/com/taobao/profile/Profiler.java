@@ -320,6 +320,11 @@ public class Profiler {
 			return ;
 		}
 
+		long useTime = endTime - (Long) frameData[1];
+		if(!isNeedRecord(useTime)){
+			return;
+		}
+
 		RecordSlowQuery record = new RecordSlowQuery();
 		Map<String, String> map = new HashMap<String, String>();
 
@@ -328,7 +333,7 @@ public class Profiler {
 		map.put("db", (String) frameData[4]);
 		map.put("sql", (String) frameData[5]);
 		record.setRequestDesc(map);
-		record.setUseTime(endTime - (Long) frameData[1]);
+		record.setUseTime(useTime);
 		record.setType("MYSQL");
 
 		StringBuilder sb = new StringBuilder();
@@ -337,9 +342,6 @@ public class Profiler {
 		sb.append(frameData[3].toString());
 		sb.append((String) frameData[4]);
 
-		if(!isNeedRecord(record.getUseTime())){
-			return;
-		}
 		map.put("nanoTime", Manager.isNeedNanoTime() + "");
 
 		synchronized (thrData) {
