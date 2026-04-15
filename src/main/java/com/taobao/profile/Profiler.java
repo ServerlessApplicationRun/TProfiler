@@ -34,6 +34,14 @@ public class Profiler {
 
 	private final static int size = 65535;
 	/**
+	 * 缓存当前线程对应的采样槽位,避免每次进入方法都竞争全局数组锁
+	 */
+	private static final ThreadLocal<Integer> currentThreadIndex = new ThreadLocal<Integer>();
+	/**
+	 * 缓存当前线程的性能数据对象
+	 */
+	private static final ThreadLocal<ThreadData> currentThreadData = new ThreadLocal<ThreadData>();
+	/**
 	 * 线程数组
 	 */
 	public static ThreadData[] threadProfile = new ThreadData[size];
@@ -42,6 +50,49 @@ public class Profiler {
 	 * 记录慢日志的数组
 	 */
 	public static SlowQueryData[] slowQueryProfile = new SlowQueryData[size];
+
+	/**
+	 * 获取当前线程已存在的性能数据对象
+	 * 
+	 * @param threadIndex
+	 * @return
+	 */
+	private static ThreadData getThreadDataIfPresent(int threadIndex) {
+		Integer cachedIndex = currentThreadIndex.get();
+		ThreadData thrData = currentThreadData.get();
+		if (cachedIndex != null && cachedIndex.intValue() == threadIndex && thrData != null) {
+			return thrData;
+		}
+		thrData = threadProfile[threadIndex];
+		if (thrData != null) {
+			currentThreadIndex.set(threadIndex);
+			currentThreadData.set(thrData);
+		}
+		return thrData;
+	}
+
+	/**
+	 * 获取当前线程的性能数据对象,如不存在则初始化
+	 * 
+	 * @param threadIndex
+	 * @return
+	 */
+	private static ThreadData getOrCreateThreadData(int threadIndex) {
+		ThreadData thrData = getThreadDataIfPresent(threadIndex);
+		if (thrData != null) {
+			return thrData;
+		}
+		synchronized (threadProfile) {
+			thrData = threadProfile[threadIndex];
+			if (thrData == null) {
+				thrData = new ThreadData();
+				threadProfile[threadIndex] = thrData;
+			}
+		}
+		currentThreadIndex.set(threadIndex);
+		currentThreadData.set(thrData);
+		return thrData;
+	}
 
 	/**
 	 * 方法开始时调用,采集开始时间
@@ -65,21 +116,14 @@ public class Profiler {
 		}
 		try {
 			int threadIndex = (int) threadId;
-			synchronized (threadProfile) {
-				ThreadData thrData = threadProfile[threadIndex];
-				if (thrData == null) {
-					thrData = new ThreadData();
-					threadProfile[threadIndex] = thrData;
-				}
-
-				synchronized (thrData) {
-					long[] frameData = new long[3];
-					frameData[0] = methodId;
-					frameData[1] = thrData.stackNum;
-					frameData[2] = startTime;
-					thrData.stackFrame.push(frameData);
-					thrData.stackNum++;
-				}
+			ThreadData thrData = getOrCreateThreadData(threadIndex);
+			synchronized (thrData) {
+				long[] frameData = new long[3];
+				frameData[0] = methodId;
+				frameData[1] = thrData.stackNum;
+				frameData[2] = startTime;
+				thrData.stackFrame.push(frameData);
+				thrData.stackNum++;
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -108,7 +152,7 @@ public class Profiler {
 		}
 		try {
 			int threadIndex = (int) threadId;
-			ThreadData thrData = threadProfile[threadIndex];
+			ThreadData thrData = getThreadDataIfPresent(threadIndex);
 			if (thrData == null) {
 				return;
 			}
