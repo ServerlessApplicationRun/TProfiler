@@ -55,9 +55,9 @@ public class SamplerThread extends Thread {
 				if (Manager.instance().canDump()) {
 					Date date = new Date();
 					Map<Thread, StackTraceElement[]> map = Thread.getAllStackTraces();
+					StringBuilder sb = new StringBuilder(map.size() * 256);
 					for (Map.Entry<Thread, StackTraceElement[]> entry : map.entrySet()) {
 						Thread thread = entry.getKey();
-						StringBuilder sb = new StringBuilder();
 						sb.append("Thread\t");
 						sb.append(thread.getId());
 						sb.append("\t");
@@ -67,11 +67,13 @@ public class SamplerThread extends Thread {
 						sb.append("\t");
 						sb.append(date);
 						sb.append("\n");
-						fileWriter.append(sb.toString());
 						for (StackTraceElement element : entry.getValue()) {
-							fileWriter.append(element.toString());
-							fileWriter.append("\n");
+							sb.append(element.toString());
+							sb.append("\n");
 						}
+					}
+					if (sb.length() > 0) {
+						fileWriter.append(sb.toString());
 						fileWriter.flushAppend();
 					}
 				}
